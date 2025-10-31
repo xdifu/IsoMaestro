@@ -1,10 +1,28 @@
-import { loadSampleEvidence } from "../rag/evidenceStore.js";
+import { getEvidenceByPointer, loadEvidenceSnapshot } from "../rag/evidenceStore.js";
+
 export function router() {
   return async (path: string) => {
-    // 演示：列出样例证据库
-    if (path === "" || path === "/") {
-      return loadSampleEvidence().map(p => ({ id: p.id, title: p.title }));
+    const normalized = (path ?? "").trim();
+    if (normalized === "" || normalized === "/") {
+      const snapshot = await loadEvidenceSnapshot();
+      return snapshot.records.map(record => ({
+        pointer: record.pointer,
+        title: record.title,
+        updatedAt: record.updatedAt,
+        sourceUrl: record.sourceUrl
+      }));
     }
-    return { error: "not_implemented" };
+
+    const segments = normalized.replace(/^\/+/, "").split("/").filter(Boolean);
+    if (segments[0] === "pointer" && segments[1]) {
+      const pointer = decodeURIComponent(segments.slice(1).join("/"));
+      const record = await getEvidenceByPointer(pointer);
+      if (!record) {
+        return { error: "not_found", pointer };
+      }
+      return record;
+    }
+
+    return { error: "unsupported_path", path };
   };
 }

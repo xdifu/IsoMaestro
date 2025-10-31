@@ -350,6 +350,23 @@ server.setRequestHandler(
 );
 ```
 
+### 3.4 指针优先的证据资源
+
+- 证据目录 (`evidence://`) 仅返回 `EvidenceCard` 元数据：`pointer`、`title`、`summary`、`anchors`、`updatedAt`。  
+- 指针格式遵循 `ev://collection/doc#fragment?v=hash`，`hash` 必须是内容哈希，用于运行期校验。  
+- `render_with_pointers` 需要能够通过 `getEvidenceByPointer()` 校验指针的存在性与版本号，一旦校验失败必须 fail-closed。
+- 允许配置 `REMOTE_EVIDENCE_URL` 远程同步，只能返回 JSON 数组，服务端写入本地缓存后才可提供给检索器。
+
+### 3.5 运行产物与日志资源
+
+- `artifact://run_<id>/final.json`：每次执行的最终输出（JSON 序列化版本），保存在 `ARTIFACTS_DIR/run_<id>/final.json`。  
+- `log://run_<id>`：ndjson 形式的沙盒执行日志（每行 `{ ts, seq, line }`），文件位于 `LOG_DIR/run_<id>.ndjson`。  
+- 资源读取器应支持：
+  - 根路径（`/`）列出所有可用的 run id 与文件列表；
+  - `/run_<id>` 返回 run 内可用的文件；
+  - `/run_<id>/file` 返回具体文件内容（`.json` 自动解析，其它文件以 base64 返回）。
+- `run_capsule` 完成后必须确保产物与日志写入磁盘，并在返回的 `RunResult.artifacts` 中包含 `artifact://` URI，以方便客户端导航。
+
 ---
 
 ## 提示模板

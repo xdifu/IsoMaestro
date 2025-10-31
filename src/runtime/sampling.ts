@@ -2,10 +2,22 @@ import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import type { CreateMessageResult } from "@modelcontextprotocol/sdk/types.js";
 import { logger } from "../observability/logger.js";
 
-let serverInstance: Server | null = null;
+const SAMPLING_TIMEOUT_MS = 2000;
 
-export function attachSamplingServer(server: Server) {
-  serverInstance = server;
+let serverInstance: Server | null = null;
+let samplingEnabled = false;
+
+export function attachSamplingServer(server: Server | null, enabled: boolean) {
+  serverInstance = enabled ? server : null;
+  samplingEnabled = enabled && !!server;
+  logger.debug({
+    msg: "sampling_attach",
+    enabled: samplingEnabled
+  });
+}
+
+export function isSamplingAvailable(): boolean {
+  return samplingEnabled && serverInstance !== null;
 }
 
 export interface SamplingMessage {
@@ -34,12 +46,13 @@ export interface SamplingRequest {
 }
 
 export async function trySampleMessage(request: SamplingRequest): Promise<CreateMessageResult | null> {
-  if (!serverInstance) {
-    logger.debug({ msg: "sampling_skipped", reason: "no_server" });
+  if (!isSamplingAvailable()) {
+    logger.debug({ msg: "sampling_skipped", reason: "disabled" });
     return null;
   }
+  const description = request.description ?? "unnamed";
   try {
-    const result = await serverInstance.createMessage({
+    const result = await serverInstance!.createMessage({
       systemPrompt: request.systemPrompt,
       messages: request.messages,
       maxTokens: request.maxTokens,
@@ -48,11 +61,15 @@ export async function trySampleMessage(request: SamplingRequest): Promise<Create
       includeContext: request.includeContext,
       metadata: request.metadata,
       modelPreferences: request.modelPreferences
-    } as any);
-    logger.debug({ msg: "sampling_success", request: request.description ?? "unnamed" });
+    } as any, { timeout: SAMPLING_TIMEOUT_MS });
+    logger.debug({ msg: "sampling_success", request: description });
     return result;
   } catch (error) {
-    logger.warn({ msg: "sampling_failed", error: (error as Error).message, request: request.description ?? "unnamed" });
+    logger.warn({
+      msg: "sampling_failed",
+      error: (error as Error).message,
+      request: description
+    });
     return null;
   }
 }

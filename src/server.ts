@@ -11,11 +11,14 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { registerAll } from "./index.js";
 import { toolDefinitions } from "./schemas/toolDefinitions.js";
 import { attachSamplingServer } from "./runtime/sampling.js";
+import { env } from "./config/env.js";
 
 const state = registerAll();
 
 // Protocol version aligned with official MCP spec (2025-06-18)
 const PROTOCOL_VERSION = "2025-06-18";
+
+const samplingEnabled = env.samplingEnabled === true;
 
 const server = new Server({
   name: "IsoMaestro",
@@ -32,11 +35,11 @@ const server = new Server({
     prompts: {
       listChanged: false
     },
-    sampling: {}
+    ...(samplingEnabled ? { sampling: {} } : {})
   }
 });
 
-attachSamplingServer(server);
+attachSamplingServer(samplingEnabled ? server : null, samplingEnabled);
 
 // Implement tools/list handler - returns complete Tool metadata with JSON Schema
 server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -240,6 +243,7 @@ async function start() {
   console.error(`[IsoMaestro] MCP Server started`);
   console.error(`[IsoMaestro] Protocol Version: ${PROTOCOL_VERSION}`);
   console.error(`[IsoMaestro] Available Tools: ${toolDefinitions.length}`);
+  console.error(`[IsoMaestro] Sampling Enabled: ${samplingEnabled}`);
 }
 
 start().catch((error) => {

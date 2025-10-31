@@ -2,7 +2,12 @@
 
 ## 📋 执行摘要
 
-**问题**: VS Code 报告无法验证 `mcp_isomaestro_compile_capsule` 工具
+**最新改动 (2025-10-31)**  
+- MCP Sampling 现默认关闭，需通过 `SAMPLING_ENABLED=1` 显式启用；Planner / Translator 若采样失败会 2s 内降级到规则引擎。  
+- 证据检索改为指针目录 + 本地缓存，可选远程同步；`render_with_pointers` 会校验指针版本号并 fail-closed。  
+- `artifact://` 与 `log://` 资源现返回真实执行产物（JSON）与 ndjson 日志；`run_capsule` 自动将输出写入磁盘。  
+
+**历史问题**: VS Code 报告无法验证 `mcp_isomaestro_compile_capsule` 工具
 ```
 Error: tool parameters array type must have items
 ```

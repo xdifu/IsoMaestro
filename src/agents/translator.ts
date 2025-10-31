@@ -2,7 +2,7 @@ import { ExecutionCapsule, ExecutionCapsuleT } from "../schemas/executionCapsule
 import { TaskContractT } from "../schemas/taskContract.js";
 import { v4 as uuid } from "uuid";
 import { promptDescriptors } from "../prompts/index.js";
-import { extractTextContent, trySampleMessage } from "../runtime/sampling.js";
+import { extractTextContent, trySampleMessage, isSamplingAvailable } from "../runtime/sampling.js";
 import { logger } from "../observability/logger.js";
 
 const translatorPrompt = promptDescriptors.find((p) => p.name === "translator_system");
@@ -104,56 +104,94 @@ function buildDeterministicCapsule(contract: TaskContractT, capsuleId?: string):
 
 async function translatorWithSampling(contract: TaskContractT, base: ExecutionCapsuleT): Promise<ExecutionCapsuleT | null> {
   const systemText = translatorPrompt?.messages[0]?.content?.[0]?.text;
-  if (!systemText) return null;
-
-  const request = {
-    description: "translator",
-    systemPrompt: `${systemText}\nRespond with valid JSON only. Do not wrap the JSON in code fences.`,
-    messages: [
-      {
-        role: "user" as const,
-        content: {
-          type: "text" as const,
-          text: JSON.stringify({ contract, basePlan: base })
-        }
-      }
-    ],
-    maxTokens: 1200,
-    temperature: 0.2,
-    modelPreferences: {
-      intelligencePriority: 0.9
-    }
-  };
-
-  const result = await trySampleMessage(request);
-  const text = extractTextContent(result);
-  if (!text) return null;
-  const json = text.includes("`") ? text.replace(/```json|```/gi, "").trim() : text.trim();
-
-  try {
-    const raw = JSON.parse(json);
-    const merged = {
-      ...base,
-      ...raw,
-      envSpec: { ...base.envSpec, ...(raw.envSpec ?? {}) },
-      guardrails: { ...base.guardrails, ...(raw.guardrails ?? {}) },
-      evidenceRefs: raw.evidenceRefs ?? base.evidenceRefs,
-      stepPlan: raw.stepPlan ?? base.stepPlan
-    };
-    const parsed = ExecutionCapsule.safeParse(merged);
-    if (!parsed.success) {
-      logger.warn({ msg: "translator_llm_parse_failed", issues: parsed.error.issues });
-      return null;
-    }
-    return parsed.data;
-  } catch (error) {
-    logger.warn({ msg: "translator_llm_json_error", error: (error as Error).message });
+  if (!systemText || !isSamplingAvailable()) {
+    logger.debug({ msg: "translator_sampling_unavailable" });
     return null;
   }
+
+  const payload = JSON.stringify({ contract, basePlan: base });
+  const attempts = [
+    { temperature: 0.2, maxTokens: 1200 },
+    { temperature: 0.1, maxTokens: 900 }
+  ];
+
+  for (const [index, attempt] of attempts.entries()) {
+    const request = {
+      description: `translator_attempt_${index + 1}`,
+      systemPrompt: `${systemText}\nRespond with valid JSON only. Do not wrap the JSON in code fences.`,
+      messages: [
+        {
+          role: "user" as const,
+          content: {
+            type: "text" as const,
+            text: payload
+          }
+        }
+      ],
+      maxTokens: attempt.maxTokens,
+      temperature: attempt.temperature,
+      modelPreferences: {
+        intelligencePriority: 0.9
+      }
+    };
+
+    const result = await trySampleMessage(request);
+    const text = extractTextContent(result);
+    if (!text) continue;
+
+    const cleaned = sanitiseJsonCandidate(text);
+    if (!cleaned) continue;
+
+    try {
+      const raw = JSON.parse(cleaned);
+      const merged = {
+        ...base,
+        ...raw,
+        envSpec: { ...base.envSpec, ...(raw.envSpec ?? {}) },
+        guardrails: { ...base.guardrails, ...(raw.guardrails ?? {}) },
+        evidenceRefs: raw.evidenceRefs ?? base.evidenceRefs,
+        stepPlan: raw.stepPlan ?? base.stepPlan
+      };
+      const parsed = ExecutionCapsule.safeParse(merged);
+      if (!parsed.success) {
+        logger.warn({
+          msg: "translator_llm_parse_failed",
+          attempt: index + 1,
+          issues: parsed.error.issues
+        });
+        continue;
+      }
+      if (!parsed.data.stepPlan.length) {
+        logger.warn({ msg: "translator_llm_empty_plan", attempt: index + 1 });
+        continue;
+      }
+      return parsed.data;
+    } catch (error) {
+      logger.warn({
+        msg: "translator_llm_json_error",
+        error: (error as Error).message,
+        attempt: index + 1
+      });
+    }
+  }
+  return null;
 }
 
 export async function translator(contract: TaskContractT): Promise<ExecutionCapsuleT> {
   const base = buildDeterministicCapsule(contract);
   const sampled = await translatorWithSampling(contract, base);
   return sampled ?? base;
+}
+
+function sanitiseJsonCandidate(input: string): string | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  let cleaned = trimmed.replace(/```json|```/gi, "").trim();
+  const firstBrace = cleaned.indexOf("{");
+  const lastBrace = cleaned.lastIndexOf("}");
+  if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+    return null;
+  }
+  cleaned = cleaned.slice(firstBrace, lastBrace + 1);
+  return cleaned;
 }
