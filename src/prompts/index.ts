@@ -16,7 +16,18 @@ export type PromptDescriptor = {
 };
 
 function loadText(filename: string): string {
-  return readFileSync(join(here, filename), "utf8");
+  const candidatePaths = [
+    join(here, filename),
+    join(here, "../../src/prompts", filename)
+  ];
+  for (const candidate of candidatePaths) {
+    try {
+      return readFileSync(candidate, "utf8");
+    } catch {
+      /* try next path */
+    }
+  }
+  throw new Error(`Prompt template not found: ${filename}`);
 }
 
 export const promptDescriptors: PromptDescriptor[] = [
