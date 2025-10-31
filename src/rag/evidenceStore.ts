@@ -51,6 +51,11 @@ async function ensureEvidenceIndex(): Promise<void> {
       );
     }
     // 仅在开发/测试场景允许回退示例
+    if (!env.allowSampleEvidence) {
+      throw new Error(
+        `Evidence index missing and ALLOW_SAMPLE_EVIDENCE is not set. Please provision a real index at ${EVIDENCE_INDEX} or set REMOTE_EVIDENCE_URL.`
+      );
+    }
     const fallback = await readFile(FALLBACK_FIXTURE, "utf8").catch(() => null);
     if (!fallback) {
       throw new Error(`Evidence index missing and sample fallback not found at ${FALLBACK_FIXTURE}`);
