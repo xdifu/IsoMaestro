@@ -26,27 +26,7 @@
       "enabled": true,
       "priority": 1
     },
-    "lan_task": {
-      "enabled": true,
-      "priority": 1
-    },
-    "etrieve_evidence": {
-      "enabled": true,
-      "priority": 1
-    },
-    "ompile_capsule": {
-      "enabled": true,
-      "priority": 1
-    },
-    "un_capsule": {
-      "enabled": true,
-      "priority": 1
-    },
-    "eflect_pipeline": {
-      "enabled": true,
-      "priority": 1
-    },
-    "ender_with_pointers": {
+    "execute_full_workflow": {
       "enabled": true,
       "priority": 1
     }
