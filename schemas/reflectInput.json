@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://isomaestro.dev/schemas/reflectInput.json",
+  "title": "ReflectPipelineInput",
+  "type": "object",
+  "properties": {
+    "runIds": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1
+    }
+  },
+  "required": ["runIds"],
+  "additionalProperties": false
+}

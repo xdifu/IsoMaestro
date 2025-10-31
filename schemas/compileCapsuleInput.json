@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://isomaestro.dev/schemas/compileCapsuleInput.json",
+  "title": "CompileCapsuleInput",
+  "type": "object",
+  "description": "Input payload for compile_capsule tool",
+  "properties": {
+    "planId": { "type": "string" },
+    "contract": { "$ref": "./taskContract.json" }
+  },
+  "additionalProperties": false,
+  "anyOf": [
+    { "required": ["planId"] },
+    { "required": ["contract"] }
+  ]
+}

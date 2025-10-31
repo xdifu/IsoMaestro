@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://isomaestro.dev/schemas/executionCapsule.json",
+  "title": "ExecutionCapsule",
+  "type": "object",
+  "description": "Immutable one-shot capsule compiled by the translator agent",
+  "properties": {
+    "id": { "type": "string" },
+    "taskId": { "type": "string" },
+    "objective": { "type": "string" },
+    "rationale": { "type": "string" },
+    "stepPlan": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "ioSchema": { "type": "object", "additionalProperties": true },
+    "envSpec": {
+      "type": "object",
+      "properties": {
+        "networkWhitelist": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "toolsAllowlist": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "timeoutMs": { "type": "number", "minimum": 0 },
+        "cpuLimit": { "type": "number", "minimum": 0 },
+        "memMb": { "type": "number", "minimum": 0 },
+        "volumes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": { "type": "string" },
+              "mode": { "type": "string", "enum": ["ro", "rw"] }
+            },
+            "required": ["path", "mode"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["networkWhitelist", "toolsAllowlist", "timeoutMs", "cpuLimit", "memMb", "volumes"],
+      "additionalProperties": false
+    },
+    "evidenceRefs": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "guardrails": { "type": "object", "additionalProperties": true },
+    "oneShot": { "type": "boolean", "const": true },
+    "createdAt": { "type": "string", "format": "date-time" }
+  },
+  "required": [
+    "id",
+    "taskId",
+    "objective",
+    "rationale",
+    "stepPlan",
+    "ioSchema",
+    "envSpec",
+    "evidenceRefs",
+    "guardrails",
+    "oneShot",
+    "createdAt"
+  ],
+  "additionalProperties": false
+}

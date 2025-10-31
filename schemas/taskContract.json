@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://isomaestro.dev/schemas/taskContract.json",
+  "title": "TaskContract",
+  "type": "object",
+  "description": "Structured contract produced by the planner agent",
+  "properties": {
+    "id": { "type": "string" },
+    "userGoal": { "type": "string" },
+    "rationale": { "type": "string", "maxLength": 1500 },
+    "constraints": {
+      "type": "object",
+      "description": "Constraint key/value pairs",
+      "additionalProperties": true
+    },
+    "budget": {
+      "type": "object",
+      "description": "Budget guardrails for the plan",
+      "properties": {
+        "tokens": { "type": "number", "minimum": 0 },
+        "latencyMs": { "type": "number", "minimum": 0 },
+        "maxTools": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "requiredEvidence": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Pointer identifiers required before execution"
+    },
+    "toolsAllowlist": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Tools that downstream agents may call"
+    },
+    "subtasks": {
+      "type": "array",
+      "description": "Ordered list of subtasks in the plan",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "description": { "type": "string" },
+          "expectedOutput": {
+            "description": "Shape or contract of the expected result",
+            "type": ["object", "string", "null"]
+          },
+          "dependsOn": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Subtask ids this subtask depends on"
+          }
+        },
+        "required": ["id", "description", "dependsOn"],
+        "additionalProperties": false
+      }
+    },
+    "createdAt": { "type": "string", "format": "date-time" }
+  },
+  "required": ["id", "userGoal", "rationale", "subtasks", "createdAt"],
+  "additionalProperties": false
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://isomaestro.dev/schemas/evidenceCardList.json",
+  "title": "EvidenceCardList",
+  "type": "object",
+  "description": "Collection of pointer-first evidence cards",
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "title": "EvidenceCard",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "summary": { "type": "string", "maxLength": 600 },
+          "anchors": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "freshness": { "type": "string" },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "sourceUrl": { "type": "string", "format": "uri" }
+        },
+        "required": ["id", "title", "summary", "anchors", "confidence"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["items"],
+  "additionalProperties": false
+}

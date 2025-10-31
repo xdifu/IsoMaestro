@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://isomaestro.dev/schemas/planTaskInput.json",
+  "title": "PlanTaskInput",
+  "type": "object",
+  "description": "Input for the plan_task tool",
+  "properties": {
+    "goal": {
+      "type": "string",
+      "minLength": 1,
+      "description": "User provided goal to decompose"
+    },
+    "context": {
+      "type": "string",
+      "description": "Optional context or prior conversation snapshot"
+    }
+  },
+  "required": ["goal"],
+  "additionalProperties": false
+}

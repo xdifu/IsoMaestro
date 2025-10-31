@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://isomaestro.dev/schemas/runCapsuleInput.json",
+  "title": "RunCapsuleInput",
+  "description": "Input contract for run_capsule tool",
+  "type": "object",
+  "properties": {
+    "capsuleId": { "type": "string" },
+    "capsule": { "$ref": "./executionCapsule.json" }
+  },
+  "additionalProperties": false,
+  "anyOf": [
+    { "required": ["capsuleId"] },
+    { "required": ["capsule"] }
+  ]
+}

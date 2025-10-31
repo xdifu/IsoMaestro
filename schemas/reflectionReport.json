@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://isomaestro.dev/schemas/reflectionReport.json",
+  "title": "ReflectionReport",
+  "type": "object",
+  "properties": {
+    "conflicts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "resource_contention",
+              "data_dependency",
+              "timing_violation",
+              "semantic"
+            ]
+          },
+          "tasks": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "description": { "type": "string" },
+          "severity": {
+            "type": "string",
+            "enum": ["high", "medium", "low"]
+          }
+        },
+        "required": ["type", "tasks", "description", "severity"],
+        "additionalProperties": false
+      }
+    },
+    "optimizations": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["high", "medium", "low"]
+    }
+  },
+  "required": ["conflicts", "optimizations", "severity"],
+  "additionalProperties": false
+}

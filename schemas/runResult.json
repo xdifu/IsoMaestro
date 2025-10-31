@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://isomaestro.dev/schemas/runResult.json",
+  "title": "RunResult",
+  "type": "object",
+  "description": "Result payload from run_capsule execution",
+  "properties": {
+    "id": { "type": "string" },
+    "capsuleId": { "type": "string" },
+    "output": { "type": "object", "additionalProperties": true },
+    "citations": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "logs": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "createdAt": { "type": "string", "format": "date-time" }
+  },
+  "required": ["id", "capsuleId", "output", "citations", "createdAt"],
+  "additionalProperties": false
+}

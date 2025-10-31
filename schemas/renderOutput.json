@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://isomaestro.dev/schemas/renderOutput.json",
+  "title": "RenderWithPointersOutput",
+  "type": "object",
+  "properties": {
+    "ok": { "type": "boolean" },
+    "content": { "type": "string" },
+    "citations": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "error": { "type": "string" },
+    "bad": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "required": ["ok"],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": { "properties": { "ok": { "const": true } } },
+      "then": { "required": ["content", "citations"] }
+    },
+    {
+      "if": { "properties": { "ok": { "const": false } } },
+      "then": { "required": ["error", "bad"] }
+    }
+  ]
+}
