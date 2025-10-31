@@ -33,6 +33,7 @@ async function plannerWithSampling(goal: string, context?: string): Promise<Task
           }
         }
       ],
+      includeContext: "thisServer" as const,
       maxTokens: attempt.maxTokens,
       temperature: attempt.temperature,
       modelPreferences: {

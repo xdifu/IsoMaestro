@@ -128,6 +128,7 @@ async function translatorWithSampling(contract: TaskContractT, base: ExecutionCa
           }
         }
       ],
+      includeContext: "thisServer" as const,
       maxTokens: attempt.maxTokens,
       temperature: attempt.temperature,
       modelPreferences: {
