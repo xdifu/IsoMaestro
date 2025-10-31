@@ -32,7 +32,11 @@ export const toolDefinitions: Tool[] = [
             id: { type: "string" },
             userGoal: { type: "string" },
             rationale: { type: "string" },
-            subtasks: { type: "array" }
+            subtasks: {
+              type: "array",
+              description: "Array of subtasks",
+              items: { type: "object" }
+            }
           },
           required: ["id", "userGoal", "subtasks"]
         }
