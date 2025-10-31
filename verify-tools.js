@@ -24,7 +24,8 @@ const toolNames = [
   "compile_capsule",
   "run_capsule",
   "reflect_pipeline",
-  "render_with_pointers"
+  "render_with_pointers",
+  "execute_full_workflow"
 ];
 
 let allPresent = true;
@@ -41,13 +42,13 @@ toolNames.forEach((name, idx) => {
 });
 
 console.log("\n" + "─".repeat(50));
-if (allPresent && tools.length === 6) {
-  console.log("✅ All 6 tools are correctly registered!");
+if (allPresent && tools.length === 7) {
+  console.log("✅ All 7 tools are correctly registered!");
   console.log("✅ No tools are disabled!");
   console.log("\n🎉 Tool registration is VALID");
 } else {
   console.log("❌ Tool registration issue detected!");
-  console.log(`   Expected: 6 tools, Found: ${tools.length}`);
+  console.log(`   Expected: 7 tools, Found: ${tools.length}`);
   console.log(`   All present: ${allPresent}`);
 }
 console.log("========================================");

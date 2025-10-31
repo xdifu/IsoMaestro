@@ -8,6 +8,11 @@ import renderInputSchema from "../../schemas/renderInput.json" with { type: "jso
 
 export const toolDefinitions: Tool[] = [
   {
+    name: "execute_full_workflow",
+    description: "Automatically execute complete MCP workflow: planning → compilation → execution → reflection (all stages automated)",
+    inputSchema: planTaskInputSchema as Tool["inputSchema"]
+  },
+  {
     name: "plan_task",
     description: "Decompose a user goal into executable subtasks using multi-agent planning",
     inputSchema: planTaskInputSchema as Tool["inputSchema"]

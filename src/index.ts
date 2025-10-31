@@ -16,6 +16,7 @@ import { runCapsule } from "./tools/runCapsule.js";
 import { reflectPipeline } from "./tools/reflectPipeline.js";
 import { retrieveEvidence } from "./tools/retrieveEvidence.js";
 import { renderWithPointers } from "./tools/renderWithPointers.js";
+import { executeFullWorkflow } from "./tools/executeFullWorkflow.js";
 import { router as evidenceRouter } from "./resources/evidence.js";
 import { router as artifactRouter } from "./resources/artifact.js";
 import { router as logRouter } from "./resources/log.js";
@@ -37,6 +38,12 @@ export type ResourceDescriptor = {
 
 export function registerAll() {
   const tools: ToolDescriptor[] = [
+    {
+      name: "execute_full_workflow",
+      description: "Automatically execute complete MCP workflow: planning → compilation → execution → reflection",
+      inputSchema: planTaskInputSchema,
+      handler: executeFullWorkflow
+    },
     {
       name: "plan_task",
       description: "Decompose a goal into a TaskContract",
