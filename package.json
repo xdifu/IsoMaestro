@@ -10,7 +10,11 @@
     "lint": "echo \"(add a linter later)\"",
     "test": "node --import 'data:text/javascript,import { register } from \"node:module\"; import { pathToFileURL } from \"node:url\"; register(\"ts-node/esm\", pathToFileURL(\"./\"));' --test --test-reporter=spec tests/unit/pointer.spec.ts tests/e2e/mcp-e2e.spec.ts",
     "mcp": "node dist/server.js",
-    "dev": "node --watch-path dist dist/server.js"
+    "dev": "node --watch-path dist dist/server.js",
+    "fix-tools": "node tool-fix.js && npm run build",
+    "verify-tools": "node verify-tools.js",
+    "verify-mcp": "node verify-mcp-protocol.js",
+    "full-test": "node full-flow-test.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.20.2",
