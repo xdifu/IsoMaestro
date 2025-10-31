@@ -2,7 +2,8 @@
 
 A long-lived MCP server exposing tools/resources/prompts over STDIO:
 - Planner → Translator (one-shot capsule) → Sandboxed Executor → Reflector
-- Pointer-first RAG: only EvidenceCard pointers in context; server-side render-time resolution.
+- Pointer-first RAG: only EvidenceCard pointers in context; server orchestration retrieves, synthesises and validates citations.
+- Sandbox runner interprets structured step plans: retrieve evidence → synthesize draft → render with pointer validation.
 - Safety: minimal privileges, network/tool allowlists, one-shot capsule reuse protection.
 - Observability: ndjson logs (log://), basic metrics, e2e tests, CI.
 
@@ -23,8 +24,8 @@ Configure your MCP-compatible client (e.g., editor assistant) with:
 
 * plan_task → TaskContract
 * retrieve_evidence → EvidenceCard[]
-* compile_capsule → ExecutionCapsule (oneShot)
-* run_capsule → RunResult (artifacts/logs pointers)
+* compile_capsule → ExecutionCapsule (oneShot, structured step plan)
+* run_capsule → RunResult (sandbox orchestration + pointer citations)
 * reflect_pipeline → ReflectionReport
 * render_with_pointers → Final render with verified citations
 
@@ -44,6 +45,7 @@ Configure your MCP-compatible client (e.g., editor assistant) with:
 
 * Capsule one-shot CAS
 * No outbound network by default
+* Step-level tool allowlists & placeholder resolution guardrails
 * All external I/O via adapters with policy guard
 * Render-time pointer validation (fail-closed)
 
@@ -54,4 +56,3 @@ Configure your MCP-compatible client (e.g., editor assistant) with:
 * OTEL exporter & metrics dashboard
 
 MIT License
-
