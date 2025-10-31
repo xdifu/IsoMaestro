@@ -36,27 +36,39 @@ async function handleMessage(msg: JsonRpc) {
       return write({ id, result: Object.keys(state.tools) });
     }
     if (method === "mcp.tools.call") {
-      const { name, args } = params || {};
-      if (!state.tools[name]) return write({ id, error: { code: -32601, message: "No such tool" } });
-      const out = await state.tools[name](args ?? {});
+      const { name, args } = (params ?? {}) as { name?: unknown; args?: unknown };
+      if (typeof name !== "string") {
+        return write({ id, error: { code: -32602, message: "Tool name must be string" } });
+      }
+      const tool = state.tools[name];
+      if (!tool) return write({ id, error: { code: -32601, message: "No such tool" } });
+      const out = await tool(args ?? {});
       return write({ id, result: out });
     }
     if (method === "mcp.resources.list") {
       return write({ id, result: Object.keys(state.resources) });
     }
     if (method === "mcp.resources.read") {
-      const { uri, path } = params || {};
-      if (!state.resources[uri]) return write({ id, error: { code: -32601, message: "No such resource" } });
-      const out = await state.resources[uri](path ?? "");
+      const { uri, path } = (params ?? {}) as { uri?: unknown; path?: unknown };
+      if (typeof uri !== "string") {
+        return write({ id, error: { code: -32602, message: "Resource URI must be string" } });
+      }
+      const reader = state.resources[uri];
+      if (!reader) return write({ id, error: { code: -32601, message: "No such resource" } });
+      const out = await reader(typeof path === "string" ? path : "");
       return write({ id, result: out });
     }
     if (method === "mcp.prompts.list") {
       return write({ id, result: Object.keys(state.prompts) });
     }
     if (method === "mcp.prompts.get") {
-      const { name } = params || {};
-      if (!state.prompts[name]) return write({ id, error: { code: -32601, message: "No such prompt" } });
-      return write({ id, result: state.prompts[name] });
+      const { name } = (params ?? {}) as { name?: unknown };
+      if (typeof name !== "string") {
+        return write({ id, error: { code: -32602, message: "Prompt name must be string" } });
+      }
+      const prompt = state.prompts[name];
+      if (!prompt) return write({ id, error: { code: -32601, message: "No such prompt" } });
+      return write({ id, result: prompt });
     }
 
     return write({ id, error: { code: -32601, message: "Unknown method" } });
