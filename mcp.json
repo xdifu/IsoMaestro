@@ -7,6 +7,7 @@
   "server": {
     "command": "node",
     "args": ["dist/server.js"],
+    "transport": { "type": "stdio" },
     "env": {}
   }
 }

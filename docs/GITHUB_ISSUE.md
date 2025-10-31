@@ -78,70 +78,23 @@ MCP 2025-06-18 规范要求：
 
 ### 修复内容
 
-文件：`src/schemas/toolDefinitions.ts`
+**关键文件**：`schemas/*.json`、`src/index.ts`、`src/schemas/toolDefinitions.ts`
 
-#### 1. compile_capsule 工具修复
+#### 1. 建立集中式 JSON Schema 仓库
 
-```typescript
-// ✅ 修复后的定义
-{
-  name: "compile_capsule",
-  inputSchema: {
-    type: "object",
-    properties: {
-      contract: {
-        type: "object",
-        properties: {
-          id: { type: "string" },
-          userGoal: { type: "string" },
-          rationale: { type: "string" },
-          subtasks: {
-            type: "array",
-            description: "Array of subtasks",
-            items: { type: "object" }  // ✅ 添加了 items 定义
-          }
-        },
-        required: ["id", "userGoal", "subtasks"]
-      }
-    },
-    required: ["contract"]
-  }
-}
-```
+- 新增 `schemas/` 目录，补充 `planTaskInput.json`、`compileCapsuleInput.json`、`taskContract.json`、`renderInput.json`、`evidenceCardList.json` 等文件。
+- 每个数组字段（如 `subtasks`、`requiredEvidence`、`toolsAllowlist`、`evidence`、`runIds`）均显式添加 `items` 描述，完全遵循 JSON Schema 规范。
 
-#### 2. render_with_pointers 工具修复
+#### 2. 统一工具定义
 
-```typescript
-// ✅ 修复后的定义
-{
-  name: "render_with_pointers",
-  inputSchema: {
-    type: "object",
-    properties: {
-      content: { type: "string" },
-      evidence: {
-        type: "array",
-        description: "Array of evidence cards with pointer information",
-        items: {
-          type: "object",
-          properties: {
-            id: { type: "string" },
-            title: { type: "string" },
-            source: { type: "string" },
-            passage: { type: "string" }
-          }
-        }
-      },
-      format: {
-        type: "string",
-        enum: ["markdown", "html", "plaintext"]
-      },
-      includeFootnotes: { type: "boolean" }
-    },
-    required: ["content"]
-  }
-}
-```
+- `toolDefinitions` 改为直接引用上述 JSON Schema，并通过 MCP SDK 对外暴露，确保客户端获取的 Schema 与运行时实现 1:1 对齐。
+- `compile_capsule` 输入 Schema 允许 `planId` 或 `contract`（`anyOf` 约束），其中 `contract` 通过 `$ref` 引用 `TaskContract`。
+- `render_with_pointers` 使用新的 `schemas/renderInput.json`，并通过 `schemas/evidenceCardList.json` 约束证据结构。
+
+#### 3. 服务器注册流程同步更新
+
+- `src/index.ts` 暴露 `toolMap` / `resourceMap` / `promptMap`，`server.ts` 通过 MCP SDK 的 `tools/list`、`tools/call`、`prompts/list` 等接口返回完整元数据与内容。
+- `prompts` 读取 `*.txt` 原文，转换成 MCP 规定的 `messages`（`Content[]`），符合 `docs/MCP_BEST_PRACTICES.md`。
 
 ---
 

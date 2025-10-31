@@ -8,7 +8,7 @@
     "build": "tsc -p .",
     "typecheck": "tsc -p . --noEmit",
     "lint": "echo \"(add a linter later)\"",
-    "test": "node --loader ts-node/esm --test --test-reporter=spec tests/unit/pointer.spec.ts tests/e2e/mcp-e2e.spec.ts",
+    "test": "node --import 'data:text/javascript,import { register } from \"node:module\"; import { pathToFileURL } from \"node:url\"; register(\"ts-node/esm\", pathToFileURL(\"./\"));' --test --test-reporter=spec tests/unit/pointer.spec.ts tests/e2e/mcp-e2e.spec.ts",
     "mcp": "node dist/server.js",
     "dev": "node --watch-path dist dist/server.js"
   },

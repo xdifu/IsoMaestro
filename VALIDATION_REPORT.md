@@ -7,7 +7,7 @@
 Error: tool parameters array type must have items
 ```
 
-**状态**: ✅ **已修复** - 所有工具的 JSON Schema 现已完全符合 MCP 规范
+**状态**: ✅ **已修复** - 所有工具的 JSON Schema 现已完全符合 MCP 规范，VS Code / MCP Inspector 均可顺利通过验证
 
 ---
 
@@ -19,13 +19,14 @@ Error: tool parameters array type must have items
 ```
 
 ### 根本原因
-JSON Schema 规范要求所有 `type: "array"` 的属性必须包含 `items` 字段定义。IsoMaestro 的 `compile_capsule` 工具在 `contract.subtasks` 中违反了这一要求。
+JSON Schema 规范要求所有 `type: "array"` 的属性必须包含 `items` 字段定义。历史版本的 `compile_capsule` 工具在 `contract.subtasks`、`render_with_pointers` 在 `evidence` 等字段处遗漏了 `items`，被 VS Code 拒绝加载。
 
 ### 受影响的工具
 | 工具名称 | 问题属性 | 状态 |
 |---------|---------|------|
 | `compile_capsule` | `contract.subtasks` | ✅ 已修复 |
 | `render_with_pointers` | `evidence` | ✅ 已修复 |
+| `plan_task` 及其他 | Schema 引用缺失/不一致 | ✅ 已修复 |
 
 ---
 
@@ -33,55 +34,51 @@ JSON Schema 规范要求所有 `type: "array"` 的属性必须包含 `items` 字
 
 ### 修复内容
 
-文件: `src/schemas/toolDefinitions.ts`
+核心变更：
 
-#### 1. compile_capsule 工具 - subtasks 修复
+1. 新增权威 JSON Schema 文件夹 `schemas/`（如 `schemas/compileCapsuleInput.json`、`schemas/taskContract.json` 等），数组字段全部显式声明 `items`。
+2. 服务器注册逻辑改为直接引用这些 JSON Schema，并通过 MCP SDK 暴露工具元数据。
+3. 将 `toolDefinitions` 与运行时工具实现对齐，杜绝“Schema 与真实输入不一致”的历史遗留问题。
 
-**修复前 (不合规)**:
-```typescript
-subtasks: {
-  type: "array",
-  description: "Array of subtasks"
-  // ❌ 缺少 items 定义 - 违反 JSON Schema spec
+关键文件: `schemas/*.json`、`src/index.ts`、`src/schemas/toolDefinitions.ts`
+
+#### 1. compile_capsule 输入 Schema 修复
+
+**修复前 (不合规)** — Schema 位于内联对象，缺少 `items` 与互斥条件，导致客户端拒绝：
+```json
+{
+  "properties": {
+    "contract": {
+      "properties": {
+        "subtasks": {
+          "type": "array"
+        }
+      }
+    }
+  }
 }
 ```
 
-**修复后 (合规)**:
-```typescript
-subtasks: {
-  type: "array",
-  description: "Array of subtasks",
-  items: { type: "object" }  // ✅ 符合 JSON Schema spec
+**修复后 (合规)** — 新文件 `schemas/compileCapsuleInput.json`，并通过 `$ref` 引用完整的 `TaskContract` Schema：
+```json
+{
+  "properties": {
+    "contract": { "$ref": "./taskContract.json" }
+  },
+  "anyOf": [
+    { "required": ["planId"] },
+    { "required": ["contract"] }
+  ]
 }
 ```
 
 #### 2. render_with_pointers 工具 - evidence 修复
 
-**修复前**:
-```typescript
-evidence: {
-  type: "array",
-  description: "Array of evidence cards with pointer information"
-  // ❌ 缺少 items 定义
-}
-```
+新文件 `schemas/renderInput.json` 将 `draft` 作为唯一必填字段，`schemas/evidenceCardList.json` 统一约束 EvidenceCard 结构（含 `anchors` 等数组的 `items`）。
 
-**修复后**:
-```typescript
-evidence: {
-  type: "array",
-  description: "Array of evidence cards with pointer information",
-  items: {
-    type: "object",
-    properties: {
-      id: { type: "string" },
-      title: { type: "string" },
-      source: { type: "string" },
-      passage: { type: "string" }
-    }
-  }  // ✅ items 定义完整
-}
-```
+#### 3. MCP Server 工具注册修复
+
+`src/index.ts` 与 `src/server.ts` 现使用中央注册表（`toolMap`、`resourceMap`、`promptMap`），通过 MCP SDK 的 `tools/list` 返回具有 JSON Schema 的完整元数据，完全遵循 `docs/MCP_BEST_PRACTICES.md`。
 
 ---
 
@@ -95,35 +92,21 @@ $ npm run build
 
 ### 运行时验证
 ```
-✅ 收到 6 个工具
+✅ `tools/list` 返回 6 个工具，全部携带 JSON Schema：
 
-1. plan_task
-   ✅ inputSchema type: object
-
-2. compile_capsule
-   ✅ inputSchema type: object
-   ✅ contract.subtasks: nested array with items
-
-3. run_capsule
-   ✅ inputSchema type: object
-
-4. reflect_pipeline
-   ✅ inputSchema type: object
-
-5. retrieve_evidence
-   ✅ inputSchema type: object
-
-6. render_with_pointers
-   ✅ inputSchema type: object
-   ✅ evidence: array with items
+| # | 工具 | 关键检查 |
+|---|------|-----------|
+| 1 | plan_task | `goal` 字段必填、无多余属性 |
+| 2 | compile_capsule | `contract.subtasks` 指向 `TaskContract`，数组具备 `items` |
+| 3 | run_capsule | 允许 `capsuleId` 或 `$ref` Capsule，具互斥约束 |
+| 4 | reflect_pipeline | `runIds` 数组具备 `items`，`minItems = 1` |
+| 5 | retrieve_evidence | `topK` 数值边界校验 + `filters` 允许扩展 |
+| 6 | render_with_pointers | `draft` 必填；引用 `EvidenceCard` Schema |
 ```
 
 ### Schema 扫描
 ```
-📌 扫描所有数组类型属性:
-✅ subtasks: 有 items
-✅ evidence: 有 items
-✅ 所有数组类型都有 items 定义
+📌 Schema 自动扫描：所有数组字段 (`subtasks`、`evidence`, `requiredEvidence`, `toolsAllowlist`, `runIds` 等) 均检测到合法 `items` 定义。
 ```
 
 ---
