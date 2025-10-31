@@ -29,6 +29,14 @@ Configure your MCP-compatible client (e.g., editor assistant) with:
 * reflect_pipeline → ReflectionReport
 * render_with_pointers → Final render with verified citations
 
+## LLM 集成（Sampling）
+
+IsoMaestro 会优先通过宿主（如 VS Code / GitHub Copilot）提供的 **MCP Sampling** 能力请求 LLM 采样：
+
+1. Planner / Translator 在运行时会先调用 `sampling/createMessage`，由宿主端使用用户授权的模型生成计划与 stepPlan。
+2. 宿主若未授权或不支持 sampling，服务端自动降级为规则化策略，确保流程稳定运行。
+3. 所有 LLM 交互都遵循“最小上下文”原则：步骤之间仅通过结构化产物（EvidenceCard 指针等）传递信息。
+
 ## Resources
 
 * evidence://  (read-only pointers & listings)

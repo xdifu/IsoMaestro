@@ -10,6 +10,7 @@ import {
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { registerAll } from "./index.js";
 import { toolDefinitions } from "./schemas/toolDefinitions.js";
+import { attachSamplingServer } from "./runtime/sampling.js";
 
 const state = registerAll();
 
@@ -33,6 +34,8 @@ const server = new Server({
     }
   }
 });
+
+attachSamplingServer(server);
 
 // Implement tools/list handler - returns complete Tool metadata with JSON Schema
 server.setRequestHandler(ListToolsRequestSchema, async () => {

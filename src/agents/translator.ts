@@ -1,9 +1,14 @@
-import { ExecutionCapsuleT } from "../schemas/executionCapsule.js";
+import { ExecutionCapsule, ExecutionCapsuleT } from "../schemas/executionCapsule.js";
 import { TaskContractT } from "../schemas/taskContract.js";
 import { v4 as uuid } from "uuid";
+import { promptDescriptors } from "../prompts/index.js";
+import { extractTextContent, trySampleMessage } from "../runtime/sampling.js";
+import { logger } from "../observability/logger.js";
 
-export async function translator(contract: TaskContractT): Promise<ExecutionCapsuleT> {
-  const id = "capsule_" + uuid();
+const translatorPrompt = promptDescriptors.find((p) => p.name === "translator_system");
+
+function buildDeterministicCapsule(contract: TaskContractT, capsuleId?: string): ExecutionCapsuleT {
+  const id = capsuleId ?? "capsule_" + uuid();
   const evidenceTarget = Math.min(5, Math.max(3, contract.requiredEvidence.length || 3));
   const iso = {
     collect1: `iso_${uuid()}`,
@@ -95,4 +100,60 @@ export async function translator(contract: TaskContractT): Promise<ExecutionCaps
     oneShot: true,
     createdAt: new Date().toISOString()
   };
+}
+
+async function translatorWithSampling(contract: TaskContractT, base: ExecutionCapsuleT): Promise<ExecutionCapsuleT | null> {
+  const systemText = translatorPrompt?.messages[0]?.content?.[0]?.text;
+  if (!systemText) return null;
+
+  const request = {
+    description: "translator",
+    systemPrompt: `${systemText}\nRespond with valid JSON only. Do not wrap the JSON in code fences.`,
+    messages: [
+      {
+        role: "user" as const,
+        content: {
+          type: "text" as const,
+          text: JSON.stringify({ contract, basePlan: base })
+        }
+      }
+    ],
+    maxTokens: 1200,
+    temperature: 0.2,
+    modelPreferences: {
+      intelligencePriority: 0.9
+    }
+  };
+
+  const result = await trySampleMessage(request);
+  const text = extractTextContent(result);
+  if (!text) return null;
+  const json = text.includes("`") ? text.replace(/```json|```/gi, "").trim() : text.trim();
+
+  try {
+    const raw = JSON.parse(json);
+    const merged = {
+      ...base,
+      ...raw,
+      envSpec: { ...base.envSpec, ...(raw.envSpec ?? {}) },
+      guardrails: { ...base.guardrails, ...(raw.guardrails ?? {}) },
+      evidenceRefs: raw.evidenceRefs ?? base.evidenceRefs,
+      stepPlan: raw.stepPlan ?? base.stepPlan
+    };
+    const parsed = ExecutionCapsule.safeParse(merged);
+    if (!parsed.success) {
+      logger.warn({ msg: "translator_llm_parse_failed", issues: parsed.error.issues });
+      return null;
+    }
+    return parsed.data;
+  } catch (error) {
+    logger.warn({ msg: "translator_llm_json_error", error: (error as Error).message });
+    return null;
+  }
+}
+
+export async function translator(contract: TaskContractT): Promise<ExecutionCapsuleT> {
+  const base = buildDeterministicCapsule(contract);
+  const sampled = await translatorWithSampling(contract, base);
+  return sampled ?? base;
 }
