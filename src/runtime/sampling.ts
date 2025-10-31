@@ -10,7 +10,10 @@ export function attachSamplingServer(server: Server) {
 
 export interface SamplingMessage {
   role: "user" | "assistant";
-  content: { type: "text"; text: string };
+  content: 
+    | { type: "text"; text: string }
+    | { type: "image"; data: string; mimeType: string }
+    | { type: "audio"; data: string; mimeType: string };
 }
 
 export interface SamplingRequest {
@@ -58,12 +61,22 @@ export function extractTextContent(result: CreateMessageResult | null): string |
   if (!result) return null;
   const { content } = result;
   if (!content) return null;
+  
+  // Handle content as array (per MCP spec: ContentBlock[])
   if (Array.isArray(content)) {
     const primary = content.find(item => item.type === "text");
-    return typeof primary?.text === "string" ? primary.text : null;
+    if (primary && "text" in primary) {
+      return typeof primary.text === "string" ? primary.text : null;
+    }
+    return null;
   }
-  if (content.type === "text") {
-    return content.text;
+  
+  // Handle single content block
+  if (typeof content === "object" && "type" in content) {
+    if (content.type === "text" && "text" in content) {
+      return typeof content.text === "string" ? content.text : null;
+    }
   }
+  
   return null;
 }

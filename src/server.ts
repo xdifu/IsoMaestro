@@ -31,7 +31,8 @@ const server = new Server({
     },
     prompts: {
       listChanged: false
-    }
+    },
+    sampling: {}
   }
 });
 
