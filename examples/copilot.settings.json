@@ -1,0 +1,11 @@
+{
+  "servers": [
+    {
+      "name": "IsoMaestro",
+      "command": "node",
+      "args": ["dist/server.js"],
+      "transport": "stdio",
+      "env": {}
+    }
+  ]
+}

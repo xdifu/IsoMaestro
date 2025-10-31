@@ -1,0 +1,4 @@
+[
+  { "id": "doc1", "title": "RAG Overview", "text": "retrieval augmented generation overview...", "anchors": ["a0"], "hash": "h1", "updatedAt": "2024-01-01T00:00:00Z" },
+  { "id": "doc2", "title": "Pointer-First Design", "text": "use pointers ev:// to avoid context pollution...", "anchors": ["a0","a1"], "hash": "h2", "updatedAt": "2024-02-01T00:00:00Z" }
+]

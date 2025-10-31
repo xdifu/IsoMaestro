@@ -1,0 +1,25 @@
+{
+  "name": "IsoMaestro",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc -p .",
+    "typecheck": "tsc -p . --noEmit",
+    "lint": "echo \"(add a linter later)\"",
+    "test": "node --test --test-reporter=spec",
+    "mcp": "node dist/server.js",
+    "dev": "node --watch-path dist dist/server.js"
+  },
+  "dependencies": {
+    "@types/node": "^20.11.30",
+    "zod": "^3.23.8",
+    "uuid": "^9.0.1",
+    "pino": "^9.1.0",
+    "undici": "^6.19.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}

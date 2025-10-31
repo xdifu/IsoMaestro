@@ -1,0 +1,3 @@
+Evaluate multiple RunResults to find conflicts:
+- resource_contention, data_dependency, timing_violation, semantic.
+Suggest optimizations and set overall severity.
