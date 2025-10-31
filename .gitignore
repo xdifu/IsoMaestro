@@ -1,0 +1,29 @@
+/dist
+/node_modules
+# Runtime artifacts
+/artifacts/
+/logs/
+
+# Environment & secrets
+.env
+.env.local
+.env.*
+!.env.example
+
+# Build & tooling cache
+*.tsbuildinfo
+coverage/
+.nyc_output/
+
+# Package manager logs
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor & OS noise
+.DS_Store
+.idea/
+.vscode/
+
+# Generated JS tests (compiled from TS during tooling)
+tests/**/*.js
