@@ -10,7 +10,7 @@ test("mcp toolchain end-to-end", async () => {
   assert.ok(plan.subtasks.length >= 2, "planner created subtasks");
 
   const capsule = await compileCapsule({ planId: plan.id });
-  assert.equal(capsule.stepPlan.length, 3, "translator produced step plan");
+  assert.ok(capsule.stepPlan.length >= 3, "translator produced step plan");
 
   const run = await runCapsule({ capsule });
   assert.equal(run.output?.ok, true, "executor validated draft");

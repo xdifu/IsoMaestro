@@ -8,7 +8,8 @@ export async function reflector(runs: RunResultT[]): Promise<ReflectionReportT> 
   for (const run of runs) {
     const citations = new Set(run.citations ?? []);
     const logs = run.logs ?? [];
-    const hasEvidenceStep = logs.some(line => line.includes("collect_evidence"));
+    // consider either specific id (draft_summary) or any retrieval tool invocation
+    const hasEvidenceStep = logs.some(line => line.includes("tool=retrieve_evidence"));
     const hasDraftStep = logs.some(line => line.includes("draft_summary"));
 
     if (!hasEvidenceStep) {

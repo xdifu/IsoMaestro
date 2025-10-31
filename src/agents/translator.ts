@@ -5,6 +5,12 @@ import { v4 as uuid } from "uuid";
 export async function translator(contract: TaskContractT): Promise<ExecutionCapsuleT> {
   const id = "capsule_" + uuid();
   const evidenceTarget = Math.min(5, Math.max(3, contract.requiredEvidence.length || 3));
+  const iso = {
+    collect1: `iso_${uuid()}`,
+    collect2: `iso_${uuid()}`,
+    synth: `iso_${uuid()}`,
+    validate: `iso_${uuid()}`
+  };
   return {
     id,
     taskId: contract.id,
@@ -13,7 +19,7 @@ export async function translator(contract: TaskContractT): Promise<ExecutionCaps
     stepPlan: [
       {
         kind: "tool",
-        id: "collect_evidence",
+        id: "collect_primary",
         description: "Use retrieve_evidence to collect pointer-only cards",
         tool: "retrieve_evidence",
         input: {
@@ -21,18 +27,35 @@ export async function translator(contract: TaskContractT): Promise<ExecutionCaps
           topK: evidenceTarget,
           filters: contract.constraints ?? {}
         },
-        saveAs: "evidence",
-        dependsOn: []
+        saveAs: "evidence_primary",
+        dependsOn: [],
+        isolationId: iso.collect1
+      },
+      {
+        kind: "tool",
+        id: "collect_secondary",
+        description: "Complementary retrieval with relaxed filters",
+        tool: "retrieve_evidence",
+        input: {
+          query: contract.userGoal + " pointers",
+          topK: Math.max(2, Math.floor(evidenceTarget / 2)),
+          filters: {}
+        },
+        saveAs: "evidence_secondary",
+        dependsOn: [],
+        isolationId: iso.collect2
       },
       {
         kind: "synthesize",
         id: "draft_summary",
         description: "Produce markdown draft that cites retrieved evidence",
-        source: "evidence",
+        source: "evidence_primary,evidence_secondary",
         saveAs: "draft",
         objective: contract.userGoal,
         maxItems: Math.min(4, evidenceTarget),
-        style: "bullet"
+        style: "bullet",
+        dependsOn: ["collect_primary", "collect_secondary"],
+        isolationId: iso.synth
       },
       {
         kind: "tool",
@@ -43,7 +66,8 @@ export async function translator(contract: TaskContractT): Promise<ExecutionCaps
           draft: "{{draft.draft}}"
         },
         saveAs: "final",
-        dependsOn: ["draft_summary"]
+        dependsOn: ["draft_summary"],
+        isolationId: iso.validate
       }
     ],
     ioSchema: {
@@ -63,6 +87,7 @@ export async function translator(contract: TaskContractT): Promise<ExecutionCaps
       timeoutMs: 45000,
       cpuLimit: 1,
       memMb: 512,
+      maxParallel: 4,
       volumes: []
     },
     evidenceRefs: contract.requiredEvidence ?? [],

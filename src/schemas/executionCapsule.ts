@@ -6,7 +6,8 @@ const ToolStep = z.object({
   tool: z.string(),
   input: z.record(z.any()).default({}),
   saveAs: z.string().optional(),
-  dependsOn: z.array(z.string()).default([])
+  dependsOn: z.array(z.string()).default([]),
+  isolationId: z.string().optional()
 });
 
 const SynthesizeStep = z.object({
@@ -17,7 +18,9 @@ const SynthesizeStep = z.object({
   saveAs: z.string().default("draft"),
   objective: z.string(),
   maxItems: z.number().int().min(1).max(10).default(3),
-  style: z.enum(["bullet", "paragraph"]).default("bullet")
+  style: z.enum(["bullet", "paragraph"]).default("bullet"),
+  dependsOn: z.array(z.string()).default([]),
+  isolationId: z.string().optional()
 });
 
 const StepPlanEntry = z.discriminatedUnion("kind", [ToolStep, SynthesizeStep]);
@@ -35,6 +38,7 @@ export const ExecutionCapsule = z.object({
     timeoutMs: z.number().default(60000),
     cpuLimit: z.number().default(1),
     memMb: z.number().default(1024),
+    maxParallel: z.number().int().min(1).max(32).default(1),
     volumes: z.array(z.object({ path: z.string(), mode: z.enum(["ro","rw"]).default("ro") })).default([])
   }),
   evidenceRefs: z.array(z.string()),

@@ -58,11 +58,19 @@ async function executeToolStep(step: Extract<ExecutionStepT, { kind: "tool" }>, 
 }
 
 function synthesiseDraft(step: Extract<ExecutionStepT, { kind: "synthesize" }>, outputs: StepOutputs, logs: string[]) {
-  const source = outputs.get(step.source);
-  if (!source) {
+  // Allow multiple sources separated by comma, merge items
+  const keys = step.source.split(",").map(s => s.trim()).filter(Boolean);
+  const coll: any[] = [];
+  for (const key of keys) {
+    const src = outputs.get(key);
+    if (!src) continue;
+    const arr = src.items ?? src.cards ?? [];
+    if (Array.isArray(arr)) coll.push(...arr);
+  }
+  if (coll.length === 0) {
     throw new Error(`SYNTHESIS_SOURCE_MISSING:${step.source}`);
   }
-  const items = source.items ?? source.cards ?? [];
+  const items = coll;
   if (!Array.isArray(items) || items.length === 0) {
     throw new Error("SYNTHESIS_NO_EVIDENCE");
   }
@@ -92,12 +100,58 @@ export const sandboxRunner = {
     logs.push(`sandbox:tools ${capsule.envSpec.toolsAllowlist.join(",")}`);
     const outputs: StepOutputs = new Map();
 
-    for (const step of capsule.stepPlan) {
-      if (step.kind === "tool") {
-        await executeToolStep(step, capsule, outputs, logs);
-      } else if (step.kind === "synthesize") {
-        logs.push(`step:start id=${step.id} synthesize`);
-        synthesiseDraft(step, outputs, logs);
+    // Build dependency graph for parallel execution
+    const steps = capsule.stepPlan;
+    const idToStep = new Map<string, ExecutionStepT>(steps.map(s => [s.id, s]));
+    const dependsMap = new Map<string, Set<string>>(); // id -> deps
+    const reverseDeps = new Map<string, Set<string>>(); // id -> children
+
+    for (const s of steps) {
+      const deps = s.kind === "tool" ? (s.dependsOn ?? []) : (s.dependsOn ?? []);
+      dependsMap.set(s.id, new Set(deps));
+      for (const d of deps) {
+        if (!reverseDeps.has(d)) reverseDeps.set(d, new Set());
+        reverseDeps.get(d)!.add(s.id);
+      }
+      if (!reverseDeps.has(s.id)) reverseDeps.set(s.id, new Set());
+    }
+
+    const ready: string[] = steps.filter(s => (dependsMap.get(s.id)?.size ?? 0) === 0).map(s => s.id);
+    const inFlight = new Set<string>();
+    const done = new Set<string>();
+    const maxParallel = Math.max(1, capsule.envSpec.maxParallel ?? capsule.envSpec.cpuLimit ?? 1);
+
+    async function launch(id: string) {
+      const step = idToStep.get(id)!;
+      inFlight.add(id);
+      try {
+        if (step.kind === "tool") {
+          await executeToolStep(step, capsule, outputs, logs);
+        } else {
+          logs.push(`step:start id=${step.id} synthesize`);
+          synthesiseDraft(step as any, outputs, logs);
+        }
+      } finally {
+        inFlight.delete(id);
+        done.add(id);
+        // Unblock dependents
+        for (const child of reverseDeps.get(id) ?? []) {
+          const deps = dependsMap.get(child)!;
+          deps.delete(id);
+          if (deps.size === 0) ready.push(child);
+        }
+      }
+    }
+
+    // Simple cooperative scheduler
+    while (done.size < steps.length) {
+      while (inFlight.size < maxParallel && ready.length > 0) {
+        const next = ready.shift()!;
+        void launch(next);
+      }
+      if (done.size < steps.length) {
+        // Wait briefly for progress
+        await new Promise(r => setTimeout(r, 5));
       }
     }
 
