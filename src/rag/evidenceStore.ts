@@ -190,3 +190,22 @@ async function maybeRefreshFromRemote(): Promise<void> {
     logger.warn({ msg: "evidence_remote_error", error: (error as Error).message });
   }
 }
+
+export async function appendEvidenceRecord(partial: Omit<EvidenceRecord, "pointer">): Promise<EvidenceRecord> {
+  // Load latest snapshot from disk
+  const snap = await loadEvidenceSnapshot(true);
+  const pointer = encodePointer(partial.collection, partial.docId, partial.fragment, partial.hash);
+  const record: EvidenceRecord = { ...partial, pointer };
+
+  // Append and persist
+  const next = [...snap.records, record];
+  const json = JSON.stringify(next, null, 2);
+  await writeFile(EVIDENCE_INDEX, json, "utf8");
+
+  // Refresh in-memory indices
+  pointerIndex.set(pointer, record);
+  cachedSnapshot = null;
+  await loadEvidenceSnapshot(true);
+  logger.info({ msg: "evidence_appended", pointer, collection: record.collection });
+  return record;
+}

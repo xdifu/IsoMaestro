@@ -23,11 +23,12 @@ Configure your MCP-compatible client (e.g., editor assistant) with:
 ## Tools
 
 * plan_task → TaskContract
-* retrieve_evidence → EvidenceCard[]
-* compile_capsule → ExecutionCapsule (oneShot, structured step plan)
-* run_capsule → RunResult (sandbox orchestration + pointer citations)
+* generate_evidence → EvidenceCard[]（采样生成并持久化证据，返回指针）
+* retrieve_evidence → EvidenceCard[]（从证据库检索指针）
+* compile_capsule → ExecutionCapsule（oneShot，结构化步骤计划）
+* run_capsule → RunResult（沙盒编排 + 指针校验 + 产物/日志持久化）
 * reflect_pipeline → ReflectionReport
-* render_with_pointers → Final render with verified citations
+* render_with_pointers → 最终渲染并验证指针
 
 ## LLM 集成（Sampling）
 

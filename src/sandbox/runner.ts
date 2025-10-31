@@ -2,12 +2,14 @@ import { ExecutionCapsuleT, ExecutionStepT } from "../schemas/executionCapsule.j
 import { SandboxResult } from "./types.js";
 import { retrieveEvidence } from "../tools/retrieveEvidence.js";
 import { renderWithPointers } from "../tools/renderWithPointers.js";
+import { generateEvidence } from "../tools/generateEvidence.js";
 
 type StepOutputs = Map<string, any>;
 
 const TOOL_EXECUTORS: Record<string, (input: any) => Promise<any>> = {
   retrieve_evidence: retrieveEvidence,
-  render_with_pointers: renderWithPointers
+  render_with_pointers: renderWithPointers,
+  generate_evidence: generateEvidence
 };
 
 const MAX_RETRIES = 3;

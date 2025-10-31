@@ -24,6 +24,19 @@ function buildDeterministicCapsule(contract: TaskContractT, capsuleId?: string):
     stepPlan: [
       {
         kind: "tool",
+        id: "generate_primary",
+        description: "Generate AI-backed evidence and persist into the store",
+        tool: "generate_evidence",
+        input: {
+          query: contract.userGoal,
+          context: contract.rationale ?? ""
+        },
+        saveAs: "evidence_generated",
+        dependsOn: [],
+        isolationId: iso.collect1
+      },
+      {
+        kind: "tool",
         id: "collect_primary",
         description: "Use retrieve_evidence to collect pointer-only cards",
         tool: "retrieve_evidence",
@@ -54,12 +67,12 @@ function buildDeterministicCapsule(contract: TaskContractT, capsuleId?: string):
         kind: "synthesize",
         id: "draft_summary",
         description: "Produce markdown draft that cites retrieved evidence",
-        source: "evidence_primary,evidence_secondary",
+        source: "evidence_generated,evidence_primary,evidence_secondary",
         saveAs: "draft",
         objective: contract.userGoal,
         maxItems: Math.min(4, evidenceTarget),
         style: "bullet",
-        dependsOn: ["collect_primary", "collect_secondary"],
+        dependsOn: ["generate_primary","collect_primary", "collect_secondary"],
         isolationId: iso.synth
       },
       {
@@ -88,7 +101,7 @@ function buildDeterministicCapsule(contract: TaskContractT, capsuleId?: string):
     },
     envSpec: {
       networkWhitelist: [],
-      toolsAllowlist: ["retrieve_evidence", "render_with_pointers"],
+      toolsAllowlist: ["generate_evidence", "retrieve_evidence", "render_with_pointers"],
       timeoutMs: 45000,
       cpuLimit: 1,
       memMb: 512,

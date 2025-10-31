@@ -16,7 +16,9 @@ import { runCapsule } from "./tools/runCapsule.js";
 import { reflectPipeline } from "./tools/reflectPipeline.js";
 import { retrieveEvidence } from "./tools/retrieveEvidence.js";
 import { renderWithPointers } from "./tools/renderWithPointers.js";
+import { generateEvidence } from "./tools/generateEvidence.js";
 import { executeFullWorkflow } from "./tools/executeFullWorkflow.js";
+import generateEvidenceInputSchema from "../schemas/generateEvidenceInput.json" with { type: "json" };
 import { router as evidenceRouter } from "./resources/evidence.js";
 import { router as artifactRouter } from "./resources/artifact.js";
 import { router as logRouter } from "./resources/log.js";
@@ -43,6 +45,13 @@ export function registerAll() {
       description: "Automatically execute complete MCP workflow: planning → compilation → execution → reflection",
       inputSchema: planTaskInputSchema,
       handler: executeFullWorkflow
+    },
+    {
+      name: "generate_evidence",
+      description: "Generate new evidence via LLM sampling and save with pointers",
+      inputSchema: generateEvidenceInputSchema,
+      outputSchema: evidenceCardListSchema,
+      handler: generateEvidence
     },
     {
       name: "plan_task",

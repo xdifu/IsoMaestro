@@ -11,6 +11,7 @@ import retrieveInputSchema from "../../schemas/retrieveInput.json" with { type: 
 import evidenceCardListSchema from "../../schemas/evidenceCardList.json" with { type: "json" };
 import renderInputSchema from "../../schemas/renderInput.json" with { type: "json" };
 import renderOutputSchema from "../../schemas/renderOutput.json" with { type: "json" };
+import generateEvidenceInputSchema from "../../schemas/generateEvidenceInput.json" with { type: "json" };
 
 export const toolDefinitions: Tool[] = [
   {
@@ -53,5 +54,10 @@ export const toolDefinitions: Tool[] = [
     description: "Render content with embedded pointers to evidence sources and citations",
     inputSchema: renderInputSchema as Tool["inputSchema"],
     outputSchema: renderOutputSchema as Tool["outputSchema"]
+  },
+  {
+    name: "generate_evidence",
+    description: "Generate new evidence via LLM sampling and persist with pointer IDs",
+    inputSchema: generateEvidenceInputSchema as Tool["inputSchema"]
   }
 ];
