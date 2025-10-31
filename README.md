@@ -62,6 +62,8 @@ IsoMaestro 会优先通过宿主（如 VS Code / GitHub Copilot）提供的 **MC
 | `EVIDENCE_DATA_DIR` | `./data/evidence` | 本地证据缓存目录。首次启动若无文件会写入示例数据。 |
 | `ARTIFACTS_DIR` | `./artifacts` | 执行产物输出目录（每个 run 一个子目录）。 |
 | `LOG_DIR` | `./logs` | Sandboxed runner 日志目录（ndjson）。 |
+| `STRICT_EVIDENCE_MODE` | `""` | 设为 `1` 启用严格证据模式：缺少索引时严禁使用示例，必须提供真实数据或 REMOTE_EVIDENCE_URL。 |
+| `ALLOW_SAMPLE_EVIDENCE` | `""` | 设为 `1` 在本地开发/测试时允许使用示例索引回退（生产环境严禁开启）。 |
 
 ## Security Defaults
 

@@ -44,8 +44,19 @@ async function ensureEvidenceIndex(): Promise<void> {
   try {
     await access(EVIDENCE_INDEX, fsConstants.R_OK);
   } catch {
-    const fallback = await readFile(FALLBACK_FIXTURE, "utf8");
+    // 严格模式：禁止使用示例索引，直接报错
+    if (env.strictEvidence) {
+      throw new Error(
+        `Evidence index missing and STRICT_EVIDENCE_MODE=1. Please provision a real index at ${EVIDENCE_INDEX} or set REMOTE_EVIDENCE_URL.`
+      );
+    }
+    // 仅在开发/测试场景允许回退示例
+    const fallback = await readFile(FALLBACK_FIXTURE, "utf8").catch(() => null);
+    if (!fallback) {
+      throw new Error(`Evidence index missing and sample fallback not found at ${FALLBACK_FIXTURE}`);
+    }
     await writeFile(EVIDENCE_INDEX, fallback, "utf8");
+    logger.warn({ msg: "evidence_fallback_sample_used", path: FALLBACK_FIXTURE });
   }
 }
 
@@ -77,7 +88,7 @@ async function readSnapshotFromDisk(): Promise<EvidenceSnapshot> {
 }
 
 function normaliseRecord(entry: Record<string, unknown>): EvidenceRecord {
-  const collection = typeof entry.collection === "string" && entry.collection ? entry.collection : "sample";
+  const collection = typeof entry.collection === "string" && entry.collection ? entry.collection : "external";
   const docId = String(entry.id ?? entry.docId ?? "");
   if (!docId) {
     throw new Error("Evidence record missing id");
