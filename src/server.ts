@@ -1,78 +1,245 @@
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import {
+  ListToolsRequestSchema,
+  CallToolRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
+  ListPromptsRequestSchema,
+  GetPromptRequestSchema
+} from "@modelcontextprotocol/sdk/types.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { registerAll } from "./index.js";
-
-type JsonRpc = { id?: number|string; method?: string; params?: any; result?: any; error?: any; };
+import { toolDefinitions } from "./schemas/toolDefinitions.js";
 
 const state = registerAll();
 
-process.stdin.setEncoding("utf8");
-let buf = "";
-process.stdin.on("data", (chunk) => {
-  buf += chunk;
-  let idx;
-  while ((idx = buf.indexOf("\n")) >= 0) {
-    const line = buf.slice(0, idx).trim();
-    buf = buf.slice(idx + 1);
-    if (!line) continue;
-    try {
-      const msg = JSON.parse(line) as JsonRpc;
-      handleMessage(msg);
-    } catch (e) {
-      write({ error: { code: -32700, message: "Parse error" } });
+// Protocol version aligned with official MCP spec (2025-06-18)
+const PROTOCOL_VERSION = "2025-06-18";
+
+const server = new Server({
+  name: "IsoMaestro",
+  version: "0.1.0"
+}, {
+  capabilities: {
+    tools: {
+      listChanged: false
+    },
+    resources: {
+      listChanged: false,
+      subscribe: false
+    },
+    prompts: {
+      listChanged: false
     }
   }
 });
 
-function write(msg: JsonRpc) {
-  process.stdout.write(JSON.stringify(msg) + "\n");
-}
+// Implement tools/list handler - returns complete Tool metadata with JSON Schema
+server.setRequestHandler(ListToolsRequestSchema, async () => {
+  return {
+    tools: toolDefinitions
+  };
+});
 
-async function handleMessage(msg: JsonRpc) {
-  try {
-    const { id, method, params } = msg;
-    if (!method) return write({ id, error: { code: -32600, message: "Invalid request" } });
+// Implement tools/call handler - executes tool and returns standardized Content array
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  const { name, arguments: args } = request.params;
 
-    // 简化路由：mcp.<domain>.<name>
-    if (method === "mcp.tools.list") {
-      return write({ id, result: Object.keys(state.tools) });
-    }
-    if (method === "mcp.tools.call") {
-      const { name, args } = (params ?? {}) as { name?: unknown; args?: unknown };
-      if (typeof name !== "string") {
-        return write({ id, error: { code: -32602, message: "Tool name must be string" } });
-      }
-      const tool = state.tools[name];
-      if (!tool) return write({ id, error: { code: -32601, message: "No such tool" } });
-      const out = await tool(args ?? {});
-      return write({ id, result: out });
-    }
-    if (method === "mcp.resources.list") {
-      return write({ id, result: Object.keys(state.resources) });
-    }
-    if (method === "mcp.resources.read") {
-      const { uri, path } = (params ?? {}) as { uri?: unknown; path?: unknown };
-      if (typeof uri !== "string") {
-        return write({ id, error: { code: -32602, message: "Resource URI must be string" } });
-      }
-      const reader = state.resources[uri];
-      if (!reader) return write({ id, error: { code: -32601, message: "No such resource" } });
-      const out = await reader(typeof path === "string" ? path : "");
-      return write({ id, result: out });
-    }
-    if (method === "mcp.prompts.list") {
-      return write({ id, result: Object.keys(state.prompts) });
-    }
-    if (method === "mcp.prompts.get") {
-      const { name } = (params ?? {}) as { name?: unknown };
-      if (typeof name !== "string") {
-        return write({ id, error: { code: -32602, message: "Prompt name must be string" } });
-      }
-      const prompt = state.prompts[name];
-      if (!prompt) return write({ id, error: { code: -32601, message: "No such prompt" } });
-      return write({ id, result: prompt });
-    }
-
-    return write({ id, error: { code: -32601, message: "Unknown method" } });
-  } catch (e: any) {
-    return write({ id: msg.id, error: { code: -32000, message: e?.message || "Server error" } });
+  const handler = state.tools[name];
+  if (!handler) {
+    throw new Error(`Unknown tool: ${name}`);
   }
+
+  try {
+    const result = await handler(args ?? {});
+
+    // Standardize response: always return array of Content objects
+    const contentText =
+      typeof result === "string" ? result : JSON.stringify(result, null, 2);
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: contentText
+        }
+      ]
+    };
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : String(error);
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Error executing tool ${name}: ${errorMessage}`
+        }
+      ],
+      isError: true
+    };
+  }
+});
+
+// Implement resources/list handler - lists available resources with metadata
+server.setRequestHandler(ListResourcesRequestSchema, async () => {
+  const resourceUris = Object.keys(state.resources);
+
+  return {
+    resources: resourceUris.map((uri) => ({
+      uri,
+      name: uri.replace("://", ": ").toUpperCase(),
+      description: getResourceDescription(uri),
+      mimeType: "application/json"
+    }))
+  };
+});
+
+// Implement resources/read handler - reads resource content
+server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+  const { uri, path: resourcePath } = request.params;
+
+  const handler = state.resources[uri as string];
+  if (!handler) {
+    throw new Error(`Unknown resource: ${uri}`);
+  }
+
+  try {
+    const data = await handler(typeof resourcePath === "string" ? resourcePath : "");
+
+    const content =
+      typeof data === "string" ? data : JSON.stringify(data, null, 2);
+
+    return {
+      contents: [
+        {
+          uri: uri + (resourcePath ? `#${resourcePath}` : ""),
+          mimeType: "application/json",
+          text: content
+        }
+      ]
+    };
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to read resource ${uri}: ${errorMessage}`);
+  }
+});
+
+// Implement prompts/list handler - lists available prompts with arguments
+server.setRequestHandler(ListPromptsRequestSchema, async () => {
+  const promptNames = Object.keys(state.prompts);
+
+  return {
+    prompts: promptNames.map((name) => ({
+      name,
+      description: getPromptDescription(name),
+      arguments: getPromptArguments(name)
+    }))
+  };
+});
+
+// Implement prompts/get handler - retrieves prompt with variable interpolation
+server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+  const { name, arguments: promptArgs } = request.params;
+
+  const promptText = state.prompts[name];
+  if (!promptText) {
+    throw new Error(`Unknown prompt: ${name}`);
+  }
+
+  // Process prompt with arguments if provided
+  let processedPrompt = promptText;
+  if (promptArgs) {
+    for (const [key, value] of Object.entries(promptArgs)) {
+      processedPrompt = processedPrompt.replace(
+        new RegExp(`\\{${key}\\}`, "g"),
+        String(value)
+      );
+    }
+  }
+
+  return {
+    description: getPromptDescription(name),
+    messages: [
+      {
+        role: "user",
+        content: {
+          type: "text",
+          text: processedPrompt
+        }
+      }
+    ]
+  };
+});
+
+// Helper function: Get resource metadata
+function getResourceDescription(uri: string): string {
+  const descriptions: Record<string, string> = {
+    "evidence://":
+      "Evidence cards and retrieved passages from the RAG store",
+    "artifact://": "Artifacts and outputs generated by execution runs",
+    "log://": "Structured execution logs and metrics"
+  };
+  return descriptions[uri] ?? `Resource: ${uri}`;
 }
+
+// Helper function: Get prompt metadata
+function getPromptDescription(name: string): string {
+  const descriptions: Record<string, string> = {
+    planner_system: "System prompt for the multi-agent planner",
+    translator_system: "System prompt for the task translator agent",
+    reflector_criteria: "Reflection criteria and guidelines for the reflector agent"
+  };
+  return descriptions[name] ?? `Prompt: ${name}`;
+}
+
+// Helper function: Get prompt arguments schema
+function getPromptArguments(name: string): Array<{
+  name: string;
+  description: string;
+  required?: boolean;
+}> {
+  const arguments_map: Record<
+    string,
+    Array<{ name: string; description: string; required?: boolean }>
+  > = {
+    planner_system: [
+      {
+        name: "goal",
+        description: "The user goal to plan",
+        required: false
+      },
+      {
+        name: "context",
+        description: "Additional planning context",
+        required: false
+      }
+    ],
+    translator_system: [],
+    reflector_criteria: [
+      {
+        name: "result",
+        description: "Execution result to reflect on",
+        required: false
+      }
+    ]
+  };
+  return arguments_map[name] ?? [];
+}
+
+// Start server with stdio transport
+async function start() {
+  const transport = new StdioServerTransport();
+
+  await server.connect(transport);
+
+  // Log startup info to stderr
+  console.error(`[IsoMaestro] MCP Server started`);
+  console.error(`[IsoMaestro] Protocol Version: ${PROTOCOL_VERSION}`);
+  console.error(`[IsoMaestro] Available Tools: ${toolDefinitions.length}`);
+}
+
+start().catch((error) => {
+  console.error("Failed to start server:", error);
+  process.exit(1);
+});
