@@ -1,248 +1,116 @@
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import {
-  ListToolsRequestSchema,
-  CallToolRequestSchema,
-  ListResourcesRequestSchema,
-  ReadResourceRequestSchema,
-  ListPromptsRequestSchema,
-  GetPromptRequestSchema
-} from "@modelcontextprotocol/sdk/types.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { registerAll } from "./index.js";
-import { toolDefinitions } from "./schemas/toolDefinitions.js";
-import { attachSamplingServer } from "./runtime/sampling.js";
 import { env } from "./config/env.js";
+import { attachSamplingServer } from "./runtime/sampling.js";
 
+// Initialize state with all tools, resources, and prompts
 const state = registerAll();
 
 // Protocol version aligned with official MCP spec (2025-06-18)
 const PROTOCOL_VERSION = "2025-06-18";
-
 const samplingEnabled = env.samplingEnabled === true;
 
-const server = new Server({
-  name: "IsoMaestro",
-  version: "0.1.0"
-}, {
-  capabilities: {
-    tools: {
-      listChanged: false
-    },
-    resources: {
-      listChanged: false,
-      subscribe: false
-    },
-    prompts: {
-      listChanged: false
-    },
-    ...(samplingEnabled ? { sampling: {} } : {})
-  }
-});
-
-attachSamplingServer(samplingEnabled ? server : null, samplingEnabled);
-
-// Implement tools/list handler - returns complete Tool metadata with JSON Schema
-server.setRequestHandler(ListToolsRequestSchema, async () => {
-  return {
-    tools: toolDefinitions
-  };
-});
-
-// Implement tools/call handler - executes tool and returns standardized Content array
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
-
-  const handler = state.toolMap.get(name)?.handler;
-  if (!handler) {
-    throw new Error(`Unknown tool: ${name}`);
-  }
-
-  try {
-    const result = await handler(args ?? {});
-
-    // Standardize response: always return array of Content objects
-    const contentText =
-      typeof result === "string" ? result : JSON.stringify(result, null, 2);
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: contentText
-        }
-      ]
-    };
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : String(error);
-    return {
-      content: [
-        {
-          type: "text",
-          text: `Error executing tool ${name}: ${errorMessage}`
-        }
-      ],
-      isError: true
-    };
-  }
-});
-
-// Implement resources/list handler - lists available resources with metadata
-server.setRequestHandler(ListResourcesRequestSchema, async () => {
-  return {
-    resources: state.resources.map(({ uri, description }) => ({
-      uri,
-      name: uri.replace("://", ": ").toUpperCase(),
-      description,
-      mimeType: "application/json"
-    }))
-  };
-});
-
-// Implement resources/read handler - reads resource content
-server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-  const { uri, path: resourcePath } = request.params;
-
-  const handler = state.resourceMap.get(uri as string)?.reader;
-  if (!handler) {
-    throw new Error(`Unknown resource: ${uri}`);
-  }
-
-  try {
-    const data = await handler(typeof resourcePath === "string" ? resourcePath : "");
-
-    const content =
-      typeof data === "string" ? data : JSON.stringify(data, null, 2);
-
-    return {
-      contents: [
-        {
-          uri: uri + (resourcePath ? `#${resourcePath}` : ""),
-          mimeType: "application/json",
-          text: content
-        }
-      ]
-    };
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : String(error);
-    throw new Error(`Failed to read resource ${uri}: ${errorMessage}`);
-  }
-});
-
-// Implement prompts/list handler - lists available prompts with arguments
-server.setRequestHandler(ListPromptsRequestSchema, async () => {
-  return {
-    prompts: state.promptList.map(({ name, description }) => ({
-      name,
-      description,
-      arguments: getPromptArguments(name)
-    }))
-  };
-});
-
-// Implement prompts/get handler - retrieves prompt with variable interpolation
-server.setRequestHandler(GetPromptRequestSchema, async (request) => {
-  const { name, arguments: promptArgs } = request.params;
-
-  const prompt = state.promptMap.get(name);
-  if (!prompt) {
-    throw new Error(`Unknown prompt: ${name}`);
-  }
-
-  // Process prompt with arguments if provided
-  let processedPrompt = prompt.messages[0]?.content?.[0]?.text ?? "";
-  if (promptArgs) {
-    for (const [key, value] of Object.entries(promptArgs)) {
-      processedPrompt = processedPrompt.replace(
-        new RegExp(`\\{${key}\\}`, "g"),
-        String(value)
-      );
+// Create McpServer instance (high-level API)
+const mcpServer = new McpServer(
+  {
+    name: "IsoMaestro",
+    version: "0.1.0"
+  },
+  {
+    capabilities: {
+      ...(samplingEnabled ? { sampling: {} } : {})
     }
   }
+);
 
-  return {
-    description: getPromptDescription(name),
-    messages: [
-      {
-        role: "system",
-        content: [{
-          type: "text",
-          text: processedPrompt
-        }]
+// Attach sampling capability to the underlying Server instance
+attachSamplingServer(samplingEnabled ? mcpServer.server : null, samplingEnabled);
+
+// Register all tools using McpServer's high-level tool() API
+for (const toolDef of state.tools) {
+  const toolHandler = state.toolMap.get(toolDef.name);
+  if (!toolHandler) continue;
+
+  const { handler, outputSchema } = toolHandler;
+
+  // Register tool with simple callback
+  // Note: McpServer expects the handler to receive the full arguments object
+  mcpServer.tool(
+    toolDef.name,
+    toolDef.description || `Execute ${toolDef.name}`,
+    async (args: any) => {
+      console.error(`[TOOL ${toolDef.name}] Called with args:`, JSON.stringify(args, null, 2));
+      try {
+        // Pass args directly to handler - don't default to empty object
+        const result = await handler(args);
+        console.error(`[TOOL ${toolDef.name}] Result:`, typeof result === 'string' ? result.substring(0, 200) : JSON.stringify(result).substring(0, 200));
+        
+        const contentText =
+          typeof result === "string" ? result : JSON.stringify(result, null, 2);
+
+        const response: any = {
+          content: [{ type: "text", text: contentText }]
+        };
+
+        // Include structured output if available
+        if (outputSchema && typeof result === "object" && result !== null) {
+          response.structuredContent = result;
+        }
+
+        return response;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error(`[TOOL ${toolDef.name}] Error:`, errorMessage);
+        return {
+          content: [{ type: "text", text: `Error: ${errorMessage}` }],
+          isError: true
+        };
       }
-    ]
-  };
-});
-
-// Helper function: Get resource metadata
-function getResourceDescription(uri: string): string {
-  const entry = state.resourceMap.get(uri);
-  if (entry) return entry.description;
-  const descriptions: Record<string, string> = {
-    "evidence://": "Evidence cards and retrieved passages from the RAG store",
-    "artifact://": "Artifacts and outputs generated by execution runs",
-    "log://": "Structured execution logs and metrics"
-  };
-  return descriptions[uri] ?? `Resource: ${uri}`;
+    }
+  );
 }
 
-// Helper function: Get prompt metadata
-function getPromptDescription(name: string): string {
-  const entry = state.promptMap.get(name);
-  if (entry) return entry.description;
-  const descriptions: Record<string, string> = {
-    planner_system: "System prompt for the multi-agent planner",
-    translator_system: "System prompt for the task translator agent",
-    reflector_criteria: "Reflection criteria and guidelines for the reflector agent"
-  };
-  return descriptions[name] ?? `Prompt: ${name}`;
+// Register all resources using McpServer's resource() API
+for (const resource of state.resources) {
+  const resourceHandler = state.resourceMap.get(resource.uri);
+  if (!resourceHandler) continue;
+
+  mcpServer.resource(
+    resource.uri,
+    resource.uri,
+    {
+      description: resource.description,
+      mimeType: "application/json"
+    },
+    async () => {
+      try {
+        const data = await resourceHandler.reader("");
+        const content = typeof data === "string" ? data : JSON.stringify(data, null, 2);
+        return {
+          contents: [{
+            uri: resource.uri,
+            mimeType: "application/json",
+            text: content
+          }]
+        };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to read resource: ${errorMessage}`);
+      }
+    }
+  );
 }
 
-// Helper function: Get prompt arguments schema
-function getPromptArguments(name: string): Array<{
-  name: string;
-  description: string;
-  required?: boolean;
-}> {
-  const arguments_map: Record<
-    string,
-    Array<{ name: string; description: string; required?: boolean }>
-  > = {
-    planner_system: [
-      {
-        name: "goal",
-        description: "The user goal to plan",
-        required: false
-      },
-      {
-        name: "context",
-        description: "Additional planning context",
-        required: false
-      }
-    ],
-    translator_system: [],
-    reflector_criteria: [
-      {
-        name: "result",
-        description: "Execution result to reflect on",
-        required: false
-      }
-    ]
-  };
-  return arguments_map[name] ?? [];
-}
-
-// Start server with stdio transport
+// Start server
 async function start() {
   const transport = new StdioServerTransport();
-
-  await server.connect(transport);
+  await mcpServer.connect(transport);
 
   // Log startup info to stderr
   console.error(`[IsoMaestro] MCP Server started`);
   console.error(`[IsoMaestro] Protocol Version: ${PROTOCOL_VERSION}`);
-  console.error(`[IsoMaestro] Available Tools: ${toolDefinitions.length}`);
+  console.error(`[IsoMaestro] Available Tools: ${state.tools.length}`);
   console.error(`[IsoMaestro] Sampling Enabled: ${samplingEnabled}`);
 }
 

@@ -50,11 +50,17 @@ export async function generateEvidence(input: Input) {
 }
 
 async function generateContentWithSampling(query: string, context?: string, maxChars?: number): Promise<{ title?: string; summary?: string; text?: string; anchors?: string[]; sourceUrl?: string } | null> {
+  console.error(`[generateEvidence] Checking sampling availability...`);
+  console.error(`[generateEvidence] isSamplingAvailable() = ${isSamplingAvailable()}`);
+  
   if (!isSamplingAvailable()) {
+    console.error(`[generateEvidence] Sampling NOT available, using fallback`);
     logger.warn({ msg: "evidence_sampling_unavailable" });
     // 回退：在无采样可用时，使用查询文本生成最小可用证据
     return { title: query.slice(0, 80), summary: (context ? `${query} — ${context}` : query).slice(0, maxChars || 600) };
   }
+  
+  console.error(`[generateEvidence] Sampling IS available, calling LLM...`);
   const systemPrompt = [
     "You are an evidence generator.",
     "Given a user query, produce a short title, a concise summary, and if appropriate a short explanatory text.",
@@ -63,6 +69,7 @@ async function generateContentWithSampling(query: string, context?: string, maxC
   ].join(" \n");
 
   const userPayload = JSON.stringify({ query, context, maxChars });
+  console.error(`[generateEvidence] Calling trySampleMessage with query: ${query.substring(0, 50)}...`);
   const result = await trySampleMessage({
     description: "generate_evidence",
     systemPrompt,
@@ -75,8 +82,13 @@ async function generateContentWithSampling(query: string, context?: string, maxC
     modelPreferences: { intelligencePriority: 0.9 }
   } as any);
 
+  console.error(`[generateEvidence] trySampleMessage returned:`, result ? "SUCCESS" : "NULL");
   const text = extractTextContent(result);
-  if (!text) return null;
+  console.error(`[generateEvidence] extractTextContent returned:`, text ? text.substring(0, 100) : "NULL");
+  if (!text) {
+    console.error(`[generateEvidence] No text extracted, returning null`);
+    return null;
+  }
   const cleaned = sanitiseJsonCandidate(text);
   if (!cleaned) return null;
   try {

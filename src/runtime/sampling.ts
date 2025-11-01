@@ -47,11 +47,22 @@ export interface SamplingRequest {
 
 export async function trySampleMessage(request: SamplingRequest): Promise<CreateMessageResult | null> {
   if (!isSamplingAvailable()) {
+    console.error(`[SAMPLING] ❌ Sampling unavailable - enabled: ${samplingEnabled}, server: ${!!serverInstance}`);
     logger.debug({ msg: "sampling_skipped", reason: "disabled" });
     return null;
   }
   const description = request.description ?? "unnamed";
+  
+  console.error(`[SAMPLING] 🚀 Attempting LLM call for: ${description}`);
+  console.error(`[SAMPLING] Request details:`, JSON.stringify({ 
+    systemPrompt: request.systemPrompt?.substring(0, 100),
+    messagesCount: request.messages.length,
+    maxTokens: request.maxTokens,
+    includeContext: request.includeContext
+  }, null, 2));
+  
   try {
+    console.error(`[SAMPLING] 📤 Calling server.createMessage()...`);
     const result = await serverInstance!.createMessage({
       systemPrompt: request.systemPrompt,
       messages: request.messages,
@@ -62,12 +73,18 @@ export async function trySampleMessage(request: SamplingRequest): Promise<Create
       metadata: request.metadata,
       modelPreferences: request.modelPreferences
     } as any, { timeout: SAMPLING_TIMEOUT_MS });
+    console.error(`[SAMPLING] ✅ Success! Result type: ${typeof result}, has content: ${!!result?.content}`);
     logger.debug({ msg: "sampling_success", request: description });
     return result;
   } catch (error) {
+    console.error(`[SAMPLING] ❌ FAILED with error:`);
+    console.error(`[SAMPLING] Error name: ${(error as Error).name}`);
+    console.error(`[SAMPLING] Error message: ${(error as Error).message}`);
+    console.error(`[SAMPLING] Full error:`, error);
     logger.warn({
       msg: "sampling_failed",
       error: (error as Error).message,
+      errorName: (error as Error).name,
       request: description
     });
     return null;

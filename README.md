@@ -8,17 +8,32 @@ A long-lived MCP server exposing tools/resources/prompts over STDIO:
 - Observability: ndjson logs (`log://`), persisted artifacts (`artifact://`), pointer catalog validation, e2e tests, CI.
 
 ## Quickstart
-````
+
+### Option 1: STDIO Transport (Default)
+```bash
 npm install
 npm run build
 npm run mcp
-````
+```
 
-Configure your MCP-compatible client (e.g., editor assistant) with:
+Configure your MCP-compatible client with:
+- command: `node`
+- args: `dist/server.js`
+- transport: `stdio`
 
-* command: `node`
-* args: `dist/server.js`
-* transport: `stdio`
+### Option 2: HTTP/SSE Transport (Recommended for Sampling)
+```bash
+npm install
+npm run build
+SAMPLING_ENABLED=1 npm run mcp-http
+```
+
+Configure your MCP-compatible client with:
+- type: `sse`
+- url: `http://localhost:3001/sse`
+- headers: (optional authentication)
+
+Or use the provided `mcp.json` configuration file.
 
 ## Tools
 
@@ -32,13 +47,31 @@ Configure your MCP-compatible client (e.g., editor assistant) with:
 
 ## LLM 集成（Sampling）
 
-IsoMaestro 会优先通过宿主（如 VS Code / GitHub Copilot）提供的 **MCP Sampling** 能力请求 LLM 采样：
+IsoMaestro 通过 **MCP Sampling** 协议与宿主（如 Claude）集成进行 LLM 采样：
 
-1. Planner / Translator 在运行时会先调用 `sampling/createMessage`，由宿主端使用用户授权的模型生成计划与 stepPlan。
-2. 宿主若未授权或不支持 sampling，服务端自动降级为规则化策略，确保流程稳定运行。
-3. 所有 LLM 交互都遵循“最小上下文”原则：步骤之间仅通过结构化产物（EvidenceCard 指针等）传递信息。
+### 采样工作原理
+1. 服务端声明 `sampling: {}` 能力
+2. 当需要 LLM 生成时，发送 `sampling/createMessage` 请求给客户端
+3. 客户端使用用户授权的模型生成内容并返回
+4. 服务端处理响应并继续执行
 
-> **提示**：默认关闭 sampling。若部署端启用了宿主采样功能，设置 `SAMPLING_ENABLED=1` 后重新启动即可自动协商 capabilities。
+### 传输方式
+- **STDIO**: 本地进程间通信，采样请求超时（不支持）
+- **HTTP/SSE**: 网络连接，Claude 可处理采样请求 ✅
+
+### 配置采样
+```bash
+# 启用采样
+export SAMPLING_ENABLED=1
+
+# 使用 HTTP 服务器（推荐）
+npm run mcp-http
+
+# 或使用 STDIO（采样不可用）
+npm run mcp
+```
+
+> **重要**：采样需要 MCP 客户端（如 Claude）支持 `sampling/createMessage` 处理程序。STDIO 传输不支持采样。
 
 ## Resources
 
